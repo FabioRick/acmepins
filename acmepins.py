@@ -23,12 +23,6 @@ import select
 import math
 import time
 
-legacy_id=3
-if platform.platform().find("Linux-2")!=-1:
-	legacy_id=1
-if platform.platform().find("Linux-4.4")!=-1:
-	legacy_id=2
-
 pinmode = {
 	"OUTPUT" : "out",
 	"LOW" : "out",
@@ -506,6 +500,14 @@ BOTH='both'
 PUD_UP='none'
 PUD_DOWN='none'
 
+def get_legacy_id():
+	legacy_id=3
+	if platform.platform().find("Linux-2")!=-1:
+		legacy_id=1
+	if platform.platform().find("Linux-4.4")!=-1:
+		legacy_id=2
+	return legacy_id
+
 def setmode(mode):
 	return 0
 
@@ -515,72 +517,13 @@ def setwarnings(mode):
 def cleanup():
 	pass
 
-def setup(pin,mode,pull_up_down=0):
-	kernel_id=pinname2kernelid(pin)
-	export(kernel_id)
-	direction(kernel_id,mode)
-
-def output(pin,value):
-	if value==True:
-		value=1
-	if value==False:
-		value=0
-			
-	iopath=get_gpio_path(pinname2kernelid(pin))
-	if os.path.exists(iopath): 
-		f = open(iopath + '/value','w')
-		f.write(str(value))
-		f.close()
-
-def input(pin):
-	if kernel_id<>-1:
-		iopath=get_gpio_path(pinname2kernelid(pin))
-		if os.path.exists(iopath): 
-			f = open(iopath + '/value','r')
-			a=f.read()
-			f.close()
-			return int(a)
-
 def getVersion ():
 	return __version__
 			
-def add_event_detect(pin, value, callback, debouncingtime):
-	iopath=get_gpio_path(pinname2kernelid(pin))
-	if os.path.exists(iopath): 
-		fd = open(iopath + '/value','w')
-		fd.write(str(value))
-	else:
-		return
-
-	kernel_id=pinname2kernelid(pin)
-	if fd!=None:
-		set_edge(kernel_id,value)
-		thread.start_new_thread(wait_edge,(fd,pin,callback,debouncingtime))
-		return
-	else:		
-		thread.exit()
-
-	fd.close()
-			
-
 #End of RPi.GPIO wrapper functions 
 
-def wait_edge(fd,pin,callback,debouncingtime):
-	debouncingtime=debouncingtime/1000
-	timestampprec=time.time()
-	counter=0
-	po = select.epoll()
-	po.register(fd,select.EPOLLET)
-	while True:
-		events = po.poll()
-		timestamp=time.time()
-		if (timestamp-timestampprec>debouncingtime) and counter>0:
-			callback(pin)
-		counter=counter+1
-		timestampprec=timestamp
-
 def get_gpio_path(kernel_id):
-	global legacy_id
+	legacy_id = get_legacy_id()
 	kernel_id=kernel_id-32	
 	
 	if (legacy_id==1):
@@ -620,98 +563,6 @@ def get_kernel_id(connector_name,pin_number):
 	return pinname2kernelid(connector_name + "." +pin_number)
 
 
-def export(kernel_id):
-	global legacy_id
-
-	iopath=get_gpio_path(kernel_id)
-	if not os.path.exists(iopath): 
-		f = open('/sys/class/gpio/export','w')
-		if (legacy_id==1):
-			f.write(str(kernel_id))
-		else:
-			f.write(str(kernel_id-32))
-		f.close()
-
-def unexport(kernel_id):
-	global legacy_id
-
-	iopath=get_gpio_path(kernel_id)
-	if os.path.exists(iopath): 
-		f = open('/sys/class/gpio/unexport','w')
-		if (legacy_id==1):
-			f.write(str(kernel_id))
-		else:
-			f.write(str(kernel_id-32))
-		f.close()
-
-def direction(kernel_id,direction):
-	iopath=get_gpio_path(kernel_id)
-	if os.path.exists(iopath): 
-		f = open(iopath + '/direction','w')
-		f.write(direction)
-		f.close()
-
-def set_value(kernel_id,value):
-	iopath=get_gpio_path(kernel_id)
-	if os.path.exists(iopath): 
-		f = open(iopath + '/value','w')
-		f.write(str(value))
-		f.close()
-
-def get_value(kernel_id):
-	if kernel_id<>-1:
-		iopath=get_gpio_path(kernel_id)
-		if os.path.exists(iopath): 
-			f = open(iopath + '/value','r')
-			a=f.read()
-			f.close()
-			return int(a)
-
-def set_edge(kernel_id,value):
-	iopath=get_gpio_path(kernel_id)
-	if os.path.exists(iopath): 
-		if value in ('none', 'rising', 'falling', 'both'):
-		    f = open(iopath + '/edge','w')
-		    f.write(value)
-		    f.close()
-
-def pwm_export(pwm_id):
-	iopath='/sys/class/pwm/pwmchip0/pwm%d' % pwm_id
-	if not os.path.exists(iopath): 
-		iopath='/sys/class/pwm/pwmchip0'
-		f = open(iopath + '/export','w')
-		f.write(str(pwm_id))
-		f.close()
-
-def pwm_enable(pwm_id):
-	iopath='/sys/class/pwm/pwmchip0/pwm%d' % pwm_id
-	if os.path.exists(iopath): 
-		f = open(iopath + '/enable','w')
-		f.write(str(1))
-		f.close()
-
-def pwm_disable(pwm_id):
-	iopath='/sys/class/pwm/pwmchip0/pwm%d' % pwm_id
-	if os.path.exists(iopath): 
-		f = open(iopath + '/enable','w')
-		f.write(str(0))
-		f.close()
-
-def pwm_duty_cycle(pwm_id,ns):
-	iopath='/sys/class/pwm/pwmchip0/pwm%d' % pwm_id
-	if os.path.exists(iopath): 
-		f = open(iopath + '/duty_cycle','w')
-		f.write(str(ns))
-		f.close()
-
-def pwm_period(pwm_id,ns):
-	iopath='/sys/class/pwm/pwmchip0/pwm%d' % pwm_id
-	if os.path.exists(iopath): 
-		f = open(iopath + '/period','w')
-		f.write(str(ns))
-		f.close()
-		f.close()
-
 #Pin to PWM id
 pin2pwm = {
 #Arietta G25
@@ -728,22 +579,60 @@ class PWM():
 
 	def __init__(self,pin,frequency):
 		self.pwm=pin2pwm[pin]
-		pwm_export(self.pwm)
+		self.pwm_export()
 		self.period=int(float(1)/frequency*1e9)
-		pwm_period(self.pwm,self.period)
+		self.pwm_period(self.period)
 	
 	def start(self,dutycycle):
 		self.dutycycle=self.period/100*dutycycle
-		pwm_duty_cycle(self.pwm,self.dutycycle)
-		pwm_enable(self.pwm)
+		self.pwm_duty_cycle(self.dutycycle)
+		self.pwm_enable()
 		
 	def	ChangeDutyCycle(self,dutycycle):
 		self.dutycycle=self.period/100*dutycycle
-		pwm_duty_cycle(self.pwm,self.dutycycle)
+		self.pwm_duty_cycle(self.dutycycle)
 		
 	def stop(self):
-		pwm_disable(self.pwm)
+		self.pwm_disable()
+
+	def pwm_export(self):
+		iopath='/sys/class/pwm/pwmchip0/pwm%d' % self.pwm
+		if not os.path.exists(iopath): 
+			iopath='/sys/class/pwm/pwmchip0'
+			f = open(iopath + '/export','w')
+			f.write(str(self.pwm))
+			f.close()
+
+	def pwm_enable(self):
+		iopath='/sys/class/pwm/pwmchip0/pwm%d' % self.pwm
+		if os.path.exists(iopath): 
+			f = open(iopath + '/enable','w')
+			f.write(str(1))
+			f.close()
+
+	def pwm_disable(self):
+		iopath='/sys/class/pwm/pwmchip0/pwm%d' % self.pwm
+		if os.path.exists(iopath): 
+			f = open(iopath + '/enable','w')
+			f.write(str(0))
+			f.close()
+
+	def pwm_duty_cycle(self,ns):
+		iopath='/sys/class/pwm/pwmchip0/pwm%d' % self.pwm
+		if os.path.exists(iopath): 
+			f = open(iopath + '/duty_cycle','w')
+			f.write(str(ns))
+			f.close()
+
+	def pwm_period(self,ns):
+		iopath='/sys/class/pwm/pwmchip0/pwm%d' % self.pwm
+		if os.path.exists(iopath): 
+			f = open(iopath + '/period','w')
+			f.write(str(ns))
+			f.close()
+			f.close()
 		
+
 def pinname2kernelid(pinname):
 	"""
 	Return the Kernel ID of any Pin using the MCU name
@@ -770,51 +659,87 @@ def pinname2kernelid(pinname):
 class GPIO():
 	kernel_id=None
 	fd=None
+	legacy_id=None
 
 
 	def __init__(self,pin,mode):
-		self.kernel_id=pinname2kernelid(pin)
-		unexport(self.kernel_id)
-		export(self.kernel_id)
-		direction(self.kernel_id,pinmode[mode])
+		self.setup(pin,pinmode[mode])
+		self.legacy_id = get_legacy_id()
 
 		iopath=get_gpio_path(self.kernel_id)
 		if os.path.exists(iopath): 
-			self.fd = open(iopath + '/value','r')
+			self.fd = open(iopath + '/value','r+')
 
-	def high(self):
-		set_value(self.kernel_id,1)
-		
-	def low(self):
-		set_value(self.kernel_id,0)
+	def __del__(self):
+		self.fd.close()
+		self.unexport()
 
-	def on(self):
-		set_value(self.kernel_id,1)
-		
-	def off(self):
-		set_value(self.kernel_id,0)
+	def setup(self,pin,mode,pull_up_down=0):
+		self.kernel_id=pinname2kernelid(pin)
+		self.unexport()
+		self.export()
+		self.direction(mode)
 
-	def digitalWrite(self,level):
-		set_value(self.kernel_id,pinlevel[level])
+	def export(self):
+		iopath=get_gpio_path(self.kernel_id)
+		if not os.path.exists(iopath): 
+			f = open('/sys/class/gpio/export','w')
+			if (self.legacy_id==1):
+				f.write(str(self.kernel_id))
+			else:
+				f.write(str(self.kernel_id-32))
+			f.close()
 
-	def set_value(self,value):
-		return set_value(self.kernel_id,value)
+	def unexport(self):
+		iopath=get_gpio_path(self.kernel_id)
+		if os.path.exists(iopath): 
+			f = open('/sys/class/gpio/unexport','w')
+			if (self.legacy_id==1):
+				f.write(str(self.kernel_id))
+			else:
+				f.write(str(self.kernel_id-32))
+			f.close()
 
-	def digitalRead(self):
-		return get_value(self.kernel_id)
+	def direction(self,direction):
+		iopath=get_gpio_path(self.kernel_id)
+		if os.path.exists(iopath): 
+			f = open(iopath + '/direction','w')
+			f.write(direction)
+			f.close()
+	
+	def set_value(self, value):
+		self.fd.seek(0)
+		self.fd.write(str(value))
 
 	def get_value(self):
-		return get_value(self.kernel_id)
+		self.fd.seek(0)
+		return int(self.fd.read())
 
-	get = get_value
+	def high(self):
+		self.set_value(1)
+		
+	def low(self):
+		self.set_value(0)
 
-	def wait_edge(self,fd,callback,debouncingtime):
+	def on(self):
+		self.set_value(1)
+		
+	def off(self):
+		self.set_value(0)
+
+	def digitalWrite(self,level):
+		self.set_value(pinlevel[level])
+
+	def digitalRead(self):
+		return self.get_value()
+
+	def wait_edge(self,callback,debouncingtime):
 		# Convert in millisecondi
 		debouncingtime=debouncingtime/1000.0 
 		timestampprec=time.time()
 		counter=0
 		po = select.epoll()
-		po.register(fd,select.EPOLLET)
+		po.register(self.fd,select.EPOLLET)
 		while True:
 			events = po.poll()
 			timestamp=time.time()
@@ -823,21 +748,46 @@ class GPIO():
 			counter=counter+1
 			timestampprec=timestamp
 
+	def _set_edge(self,value):
+		iopath=get_gpio_path(self.kernel_id)
+		if os.path.exists(iopath): 
+			if value in ('none', 'rising', 'falling', 'both'):
+				f = open(iopath + '/edge','w')
+				f.write(value)
+				f.close()
+
 	def set_edge(self,value,callback,debouncingtime=0):
 		if self.fd!=None:
-			set_edge(self.kernel_id,value)
-			thread.start_new_thread(self.wait_edge,(self.fd,callback,debouncingtime))
+			self._set_edge(value)
+			thread.start_new_thread(self.wait_edge,(callback,debouncingtime))
 			return
 		else:		
 			thread.exit()
 
 		return
 
+	def add_event_detect(self, value, callback, debouncingtime):
+		self.fd.seek(0)
+		self.fd.write(str(value))
+
+		if self.fd!=None:
+			self._set_edge(value)
+			thread.start_new_thread(self.wait_edge,(callback,debouncingtime))
+			return
+		else:		
+			thread.exit()
+
+
 class ARIETTA_LED():
 	ledpath="/sys/class/leds/arietta_led"
 
 	def __init__(self,mode="none"):
 		self.mode(mode)
+		if os.path.exists(self.ledpath + "/brightness"): 
+			self.fd = open(self.ledpath + "/brightness",'w')
+		
+	def __del__(self):
+		self.fd.close()
 
 	def mode(self,mode="heartbeat"):
 		if os.path.exists(self.ledpath + "/trigger"): 
@@ -846,14 +796,8 @@ class ARIETTA_LED():
 			fd.close()
 
 	def on(self):
-		if os.path.exists(self.ledpath + "/brightness"): 
-			fd = open(self.ledpath + "/brightness",'w')
-			fd.write("1")
-			fd.close()
+		self.fd.write("1")
 
 	def off(self):
-		if os.path.exists(self.ledpath + "/brightness"): 
-			fd = open(self.ledpath + "/brightness",'w')
-			fd.write("0")
-			fd.close()
+		self.fd.write("0")
 
